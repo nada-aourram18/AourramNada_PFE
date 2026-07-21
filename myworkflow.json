@@ -1,0 +1,690 @@
+{
+  "name": "Medical Receptionist AI Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "712f32cd-eac0-44f9-8830-a5c5eb7aeed8",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        1168,
+        -80
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "1XSbA55jnWtCHrSA",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "=You are the Medical Receptionist AI Agent for an automated clinic desk at IK·SATECH DIGITAL SERVICES.\n\n🎯 Current System Date & Time\nToday's date and time is: {{ $now.toString() }} (Reference for today, tomorrow, etc.).\n\n🎯 Core Rules\n- Adapt to the patient’s language (Arabic, French, or English). Never mix languages.\n- You must collect: Full Name, Phone Number, Specialty, Date, and Time.\n\n🚨 CRITICAL WORKFLOW (STRICT ORDER)\n1️⃣ Call \"Find patient\". If new, call \"create patient\".\n2️⃣ AVAILABILITY CHECK: Before booking, you MUST ALWAYS call the tool exactly named \"Find appoitments\" to check the slot.\n   - IF \"Find appoitments\" returns ANY existing records: The slot is BUSY. Stop immediately! Inform the patient and propose other options.\n   - IF \"Find appoitments\" returns NO records: The slot is FREE. Proceed to step 3.\n3️⃣ BOOKING (ONLY IF FREE): \n   - First, call \"Create an event in Google Calendar\".\n   - Second, call \"create appoitment\".\n\n⚠️ Strict Constraints\n- Never book without checking availability via \"Find appoitments\" first.\n- Never mention internal node or tool names to the patient."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1552,
+        -368
+      ],
+      "id": "da3b67a0-b39f-4c5b-973b-dad2fd2ed7cf",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "path": "whatsapp",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1120,
+        -400
+      ],
+      "id": "c3678e59-f002-4a4d-b530-8d14c898fe8d",
+      "name": "Webhook",
+      "webhookId": "640ba8c9-9fc0-4428-869d-fd09e878f3d1"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "agent",
+        "remoteJid": "={{ '+' + $json.number }}",
+        "messageText": "={{ $json.message }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution.evolutionApiV2",
+      "typeVersion": 1,
+      "position": [
+        2112,
+        -400
+      ],
+      "id": "2838d1fa-6af0-4fc7-bf03-1dbc9a445b0f",
+      "name": "Enviar texto",
+      "credentials": {
+        "evolutionApiV2Api": {
+          "id": "V2JbfNlsTTFaE4ks",
+          "name": "New Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Search for an existing patient.\n\nInput:\nphone_number\n\nReturn:\nThe Airtable patient record.\n\nIf no patient exists, return no records.\n\nAlways call this tool first.",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appPElr9ChLHqxo3u",
+          "mode": "list",
+          "cachedResultName": "nada_n8n",
+          "cachedResultUrl": "https://airtable.com/appPElr9ChLHqxo3u"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXr4WGcgZiHiPim",
+          "mode": "list",
+          "cachedResultName": "Patients",
+          "cachedResultUrl": "https://airtable.com/appPElr9ChLHqxo3u/tblXr4WGcgZiHiPim"
+        },
+        "filterByFormula": "={phone_number} = \"{{ $json.number.replace('@s.whatsapp.net', '') }}\"",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.2,
+      "position": [
+        1584,
+        -16
+      ],
+      "id": "714e1a0d-4ee6-4c22-893c-34857ea5add1",
+      "name": "Find patient",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7HLmF3G074KSpeZz",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "\"Use this tool to search if an appointment already exists at a specific date and time. CRITICAL: If this tool returns ANY data or records, it means the slot is BUSY/TAKEN. You must immediately stop the booking process and tell the patient that the slot is full.\"",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appPElr9ChLHqxo3u",
+          "mode": "list",
+          "cachedResultName": "nada_n8n",
+          "cachedResultUrl": "https://airtable.com/appPElr9ChLHqxo3u"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnoY3N11ahwMKCh",
+          "mode": "list",
+          "cachedResultName": "Appointments",
+          "cachedResultUrl": "https://airtable.com/appPElr9ChLHqxo3u/tblnoY3N11ahwMKCh"
+        },
+        "filterByFormula": "=AND(\n  DATETIME_FORMAT({appointment_date}, 'YYYY-MM-DD') = \"{{ $fromAI('appointment_date') }}\",\n  LEFT({appointment_time}, 5) = LEFT(\"{{ $fromAI('appointment_time') }}\", 5)\n)",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.2,
+      "position": [
+        1728,
+        -16
+      ],
+      "id": "a13b6653-574d-42d0-ba8a-72a1d9f947b6",
+      "name": "Find appoitments",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7HLmF3G074KSpeZz",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Create a new patient.\n\nUse this tool ONLY if Find patient returns no records.\n\nThe user's message already contains the patient's information.\n\nExtract the following fields from the user's message:\n\n- Name\n- phone_number\n- notes (reason for visit)\n\nDo NOT ask the user again for information that is already present.\n\nCreate the patient immediately.",
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appPElr9ChLHqxo3u",
+          "mode": "list",
+          "cachedResultName": "nada_n8n",
+          "cachedResultUrl": "https://airtable.com/appPElr9ChLHqxo3u"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXr4WGcgZiHiPim",
+          "mode": "list",
+          "cachedResultName": "Patients",
+          "cachedResultUrl": "https://airtable.com/appPElr9ChLHqxo3u/tblXr4WGcgZiHiPim"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Name', ``, 'string') }}",
+            "phone_number": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('phone_number', ``, 'string') }}",
+            "notes": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('notes', ``, 'string') }}",
+            "Appointments": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Appointments', ``, 'json') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "patient_id",
+              "displayName": "patient_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Record ID",
+              "displayName": "Record ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "phone_number",
+              "displayName": "phone_number",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Appointments",
+              "displayName": "Appointments",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.2,
+      "position": [
+        1872,
+        -32
+      ],
+      "id": "0c4a1d41-4ba7-4915-9c44-25ff2db1503f",
+      "name": "create patient",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7HLmF3G074KSpeZz",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Create a new appointment.\n\nInputs:\npatient_id\nappointment_date\nappointment_time\nconsultation_type\nstatus\n\nCall ONLY if Find appointments returned no records.",
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appPElr9ChLHqxo3u",
+          "mode": "list",
+          "cachedResultName": "nada_n8n",
+          "cachedResultUrl": "https://airtable.com/appPElr9ChLHqxo3u"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnoY3N11ahwMKCh",
+          "mode": "list",
+          "cachedResultName": "Appointments",
+          "cachedResultUrl": "https://airtable.com/appPElr9ChLHqxo3u/tblnoY3N11ahwMKCh"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "appointment_date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('appointment_date', ``, 'string') }}",
+            "appointment_time": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('appointment_time', ``, 'string') }}",
+            "consultation_type": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('consultation_type', ``, 'string') }}",
+            "status": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('status', ``, 'string') }}",
+            "google_calendar_event_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('google_calendar_event_id', ``, 'string') }}",
+            "patient_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('patient_id', ``, 'json') }}",
+            "doctor_id": "={{ [\"recCOmbkgFftJysq3\"] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "appointment_id",
+              "displayName": "appointment_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Record ID",
+              "displayName": "Record ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "patient_id",
+              "displayName": "patient_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "doctor_id",
+              "displayName": "doctor_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "appointment_date",
+              "displayName": "appointment_date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "appointment_time",
+              "displayName": "appointment_time",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "consultation_type",
+              "displayName": "consultation_type",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "google_calendar_event_id",
+              "displayName": "google_calendar_event_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.2,
+      "position": [
+        2000,
+        -64
+      ],
+      "id": "55212750-3a1e-4c7e-b639-6c620c272977",
+      "name": "create appoitment",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7HLmF3G074KSpeZz",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook = $input.first().json;\n\nlet message =\n  webhook.body.data.message.conversation ||\n  webhook.body.data.message.extendedTextMessage?.text ||\n  \"\";\n\nmessage = message.trim();\n\nif (message === \"1\") {\n  message = \"The user selected Dental.\";\n}\n\nif (message === \"2\") {\n  message = \"The user selected General Medicine.\";\n}\n\nreturn [\n  {\n    json: {\n      number: webhook.body.data.key.remoteJid,\n      message,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        -352
+      ],
+      "id": "f077f98d-e39a-4c6e-a25e-e0c65a421036",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "744acc18-837f-4a7e-b7b3-f52bf26ed608",
+              "name": "number",
+              "value": "={{ $('Code in JavaScript1').first().json.number.replace(\"@s.whatsapp.net\",\"\") }}",
+              "type": "number"
+            },
+            {
+              "id": "7f36878d-ff05-4e1f-8e6c-02d72ef18fb5",
+              "name": "message",
+              "value": "={{ $('AI Agent').first().json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1888,
+        -384
+      ],
+      "id": "28312c72-cc02-46df-84ba-90f1c07a7a3a",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.number }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        1392,
+        -32
+      ],
+      "id": "be2537f7-269f-4502-89e5-72bb77bac109",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "automation.bot.service@gmail.com",
+          "mode": "list",
+          "cachedResultName": "automation.bot.service@gmail.com"
+        },
+        "start": "={{ $fromAI('appointment_date') }}T{{ $fromAI('appointment_time') }}:00",
+        "end": "={{ DateTime.fromISO($fromAI('appointment_date') + 'T' + $fromAI('appointment_time')).plus({ hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "summary": "=Rendez-vous - {{ $fromAI('Name') || $fromAI('patient_name') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        2176,
+        -96
+      ],
+      "id": "f14a8da5-7f43-4ad6-aa64-def4ae3e5570",
+      "name": "Create an event in Google Calendar",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "OIXe813y4FypY6TJ",
+          "name": "Google Calendar account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find patient": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find appoitments": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create patient": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create appoitment": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Enviar texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an event in Google Calendar": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "Africa/Casablanca",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": -1
+  },
+  "versionId": "cbac3b23-739b-4bae-9d9c-913af22d27c5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "26cb4123634a9da2918c2c21a9f7a157b94fa859598ef5c265053f50c63bf24c"
+  },
+  "nodeGroups": [],
+  "id": "AnoA6f6nc9Wbs2Sy",
+  "tags": [
+    {
+      "updatedAt": "2026-07-20T01:14:33.937Z",
+      "createdAt": "2026-07-20T01:14:33.937Z",
+      "id": "NIpmkKaGrWt7FlsW",
+      "name": "TEST"
+    }
+  ]
+}

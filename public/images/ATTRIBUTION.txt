@@ -1,0 +1,3 @@
+Hero background (hero-hospital-interior.jpg):
+  Source: User-provided image in current chat
+  Description: ICU-style hospital room scene (same visual provided by user)
